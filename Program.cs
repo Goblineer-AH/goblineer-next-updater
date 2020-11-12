@@ -22,29 +22,6 @@ namespace GoblineerNextUpdater
             await TestMain4(blizzardAPIService, dbService, goblineerService);
         }
 
-        public static async Task TestMain3(BlizzardAPIService blizzardAPIService, DbService dbService, GoblineerService goblineerService)
-        {
-            await dbService.InitialseDatabase();
-            await dbService.TruncateTables();
-
-            var serverIdFromDb = await dbService.GetServerId("eu", "ragnaros");
-            int serverId = serverIdFromDb ?? 0;
-            if(serverIdFromDb == null)
-            {
-                serverId = await blizzardAPIService.GetConnectedRealmIdFromSlug("eu", "ragnaros", "en_GB");
-                await dbService.InsertServerAsync(serverId, "eu", "ragnaros", DateTimeOffset.UnixEpoch);
-            }
-
-            Console.WriteLine(serverId);
-
-            Stopwatch stopwatch = Stopwatch.StartNew();
-
-            await goblineerService.TryUpdateAuctions("eu", serverId, "en_GB");
-
-            stopwatch.Stop();
-            Console.WriteLine($"Finished in {stopwatch.Elapsed}");
-        }
-
         public static async Task TestMain4(BlizzardAPIService blizzardAPIService, DbService dbService, GoblineerService goblineerService)
         {
             await dbService.InitialseDatabase();
@@ -52,33 +29,33 @@ namespace GoblineerNextUpdater
 
             var servers = new List<(string,string)>
             {
-                ("eu", "tarren-mill"),
-                ("eu", "howling-fjord"),
+                // ("eu", "tarren-mill"),
+                // ("eu", "howling-fjord"),
                 ("eu", "ragnaros"),
-                ("eu", "kazzak"),
-                ("eu", "draenor"),
+                // ("eu", "kazzak"),
+                // ("eu", "draenor"),
                 ("eu", "argent-dawn"),
                 ("eu", "twisting-nether"),
-                ("eu", "aegwynn"),
-                ("eu", "aerie-peak"),
-                ("eu", "agamaggan"),
-                ("eu", "aggramar"),
-                ("eu", "alexstrasza"),
-                ("eu", "alleria"),
-                ("eu", "alonsus"),
-                ("eu", "ambossar"),
-                ("eu", "anachronos"),
-                ("eu", "anetheron"),
-                ("eu", "antonidas"),
-                ("eu", "anub-arak"),
-                ("eu", "arathi"),
-                ("eu", "arathor"),
-                ("eu", "archimonde"),
+                // ("eu", "aegwynn"),
+                // ("eu", "aerie-peak"),
+                // ("eu", "agamaggan"),
+                // ("eu", "aggramar"),
+                // ("eu", "alexstrasza"),
+                // ("eu", "alleria"),
+                // ("eu", "alonsus"),
+                // ("eu", "ambossar"),
+                // ("eu", "anachronos"),
+                // ("eu", "anetheron"),
+                // ("eu", "antonidas"),
+                // ("eu", "arathi"),
+                // ("eu", "arathor"),
+                // ("eu", "archimonde"),
             };
 
             var serversWithId = servers.Select(((string region, string realm) x) => 
                     (x.region, goblineerService.GetConnectedRealmId(x.region, x.realm, "en_GB").Result)
                 )
+                .Distinct()
                 .ToList();
 
             while(true)

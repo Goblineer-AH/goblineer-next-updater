@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +11,7 @@ namespace GoblineerNextUpdater.Services
     {
         private BlizzardAPIService ApiService { get; set; }
         private DbService Db { get; set; }
+        private static readonly SemaphoreSlim ItemWriteSemaphore = new SemaphoreSlim(1, 1);
 
         public GoblineerService(BlizzardAPIService apiService, DbService db)
         {
@@ -47,10 +49,18 @@ namespace GoblineerNextUpdater.Services
                 (var auctions, var lastUpdate) = await ApiService.GetAuctions(region, connectedRealmId, locale, lastAuctionUpdate);
 
                 await Db.UpdateServerLastUpdate(connectedRealmId, lastUpdate); 
-
+                await Db.DeleteServersAuctionsAndmarketvalues(connectedRealmId);
+                
                 var items = auctions.Select(auc => auc.Item).ToList();
 
-                await Db.InsertItemsBatched(items);
+                await ItemWriteSemaphore.WaitAsync();
+                try {
+                    await Db.InsertItemsBatched(items);
+                }
+                finally {
+                    ItemWriteSemaphore.Release();
+                }
+
                 await Db.InsertAuctionsBatched(auctions, connectedRealmId);
 
                 var marketvalues = await CalculateMarketvaluesForServer(connectedRealmId);
@@ -105,14 +115,16 @@ namespace GoblineerNextUpdater.Services
         public async Task<int> GetConnectedRealmId(string region, string realm, string locale)
         {
             var serverIdFromDb = await Db.GetServerId(region, realm);
-            int serverId = serverIdFromDb ?? 0;
             if(serverIdFromDb == null)
             {
-                serverId = await ApiService.GetConnectedRealmIdFromSlug(region, realm, locale);
-                await Db.InsertServerAsync(serverId, region, realm, DateTimeOffset.UnixEpoch);
+                (var id, var realmName) = await ApiService.GetConnectedRealmIdFromSlug(region, realm, locale);
+                await Db.InsertServerAsync(id, region, realm, realmName, DateTimeOffset.UnixEpoch);
+                return id;
+            }
+            else {
+                return (int)serverIdFromDb;
             }
 
-            return serverId;
         }
     }
     public static class Extend

@@ -46,19 +46,20 @@ namespace GoblineerNextUpdater.Services
             return connection;
         }
 
-        public async Task InsertServerAsync(int id, string region, string realm, DateTimeOffset lastUpdate)
+        public async Task InsertServerAsync(int connectedrealmid, string region, string realm, string realmName, DateTimeOffset lastUpdate)
         {
             var query = @"
-                INSERT INTO servers (id, region, realm, lastupdate)
-                VALUES (@id, @region, @realm, @lastupdate);
+                INSERT INTO servers (connectedrealmid, region, realm, realmname, lastupdate)
+                VALUES (@connectedrealmid, @region, @realm, @realmname, @lastupdate);
             ";
 
             await using var connection = await OpenNewConnection();
             await using var cmd = new NpgsqlCommand(query, connection);
 
-            cmd.Parameters.AddWithValue("id", id);
+            cmd.Parameters.AddWithValue("connectedrealmid", connectedrealmid);
             cmd.Parameters.AddWithValue("region", region);
             cmd.Parameters.AddWithValue("realm", realm);
+            cmd.Parameters.AddWithValue("realmname", realmName);
             cmd.Parameters.AddWithValue("lastupdate", lastUpdate);
 
             await cmd.ExecuteNonQueryAsync();
@@ -67,7 +68,7 @@ namespace GoblineerNextUpdater.Services
         public async Task<int?> GetServerId(string region, string realm)
         {
             var query = @"
-                SELECT id FROM servers
+                SELECT connectedrealmid FROM servers
                 WHERE region = @region AND realm = @realm;
             ";
 
@@ -88,28 +89,28 @@ namespace GoblineerNextUpdater.Services
             return id;
         }
 
-        public async Task<DateTimeOffset> GetLastUpdate(int serverId)
+        public async Task<DateTimeOffset> GetLastUpdate(int connectedRealmId)
         {
             var query = @"
                 SELECT lastupdate FROM servers
-                WHERE id = @serverId;
+                WHERE connectedrealmid = @connectedrealmid;
             ";
 
             await using var connection = await OpenNewConnection();
             await using var cmd = new NpgsqlCommand(query, connection);
 
-            cmd.Parameters.AddWithValue("serverId", serverId);
+            cmd.Parameters.AddWithValue("connectedrealmid", connectedRealmId);
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
             if(await reader.ReadAsync())
             {
                 var lastUpdate = reader.GetDateTime(0);
-                DateTimeOffset lastUpdateUTC = DateTime.SpecifyKind(lastUpdate, DateTimeKind.Utc);
+                DateTimeOffset lastUpdateUTC = lastUpdate.ToUniversalTime();
                 return lastUpdateUTC;
             }
             
-            throw new ServerNotFoundException($"GetLastUpdate: Server with id={serverId} not found");
+            throw new ServerNotFoundException($"GetLastUpdate: Server with id={connectedRealmId} not found");
         }
 
         public async Task<List<(int, int, long)>> GetAuctionsForMarketvalues(int serverId)
@@ -204,7 +205,7 @@ namespace GoblineerNextUpdater.Services
 
             await using var connection = await OpenNewConnection();
             await using var cmd = new NpgsqlCommand(queryStringBuilder.ToString(), connection);
-            cmd.Parameters.AddWithValue($"@serverId", serverId);
+            cmd.Parameters.AddWithValue("@serverId", serverId);
 
             for(int i = 0; i < auctions.Count; ++i)
             {
@@ -285,17 +286,32 @@ namespace GoblineerNextUpdater.Services
         public async Task InsertMarketvaluesBatched(List<(int, int, double)> marketvalues, DateTimeOffset time, int serverId) =>
             await InsertBatches<(int, int, double)>(x => InsertMarketvalues(x, time, serverId), marketvalues, 5000);
 
-        public async Task UpdateServerLastUpdate(int serverId, DateTimeOffset lastUpdate)
+        public async Task UpdateServerLastUpdate(int connectedRealmId, DateTimeOffset lastUpdate)
         {
             var query = @"
-                UPDATE servers SET lastupdate = @lastUpdate WHERE id = @serverId
+                UPDATE servers SET lastupdate = @lastUpdate WHERE connectedrealmid = @connectedRealmId
             ";
 
             await using var connection = await OpenNewConnection();
             await using var cmd = new NpgsqlCommand(query, connection);
 
             cmd.Parameters.AddWithValue("lastUpdate", lastUpdate);
-            cmd.Parameters.AddWithValue("serverId", serverId);
+            cmd.Parameters.AddWithValue("connectedRealmId", connectedRealmId);
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteServersAuctionsAndmarketvalues(int connectedRealmId)
+        {
+            var query = @"
+                DELETE FROM auctions WHERE serverid = @serverid;
+                DELETE FROM marketvalues WHERE serverid= @serverid;
+            ";
+
+            await using var connection = await OpenNewConnection();
+            await using var cmd = new NpgsqlCommand(query, connection);
+
+            cmd.Parameters.AddWithValue("serverid", connectedRealmId);
 
             await cmd.ExecuteNonQueryAsync();
         }
@@ -304,9 +320,11 @@ namespace GoblineerNextUpdater.Services
         {
             var query = @"
                 CREATE TABLE IF NOT EXISTS servers (
-                    id INTEGER PRIMARY KEY NOT NULL,
+                    id serial PRIMARY KEY,
+                    connectedRealmId INTEGER NOT NULL,
                     region TEXT NOT NULL,
                     realm TEXT NOT NULL,
+                    realmName TEXT NOT NULL,
                     lastUpdate TIMESTAMPTZ NOT NULL
                 );
 
@@ -344,7 +362,7 @@ namespace GoblineerNextUpdater.Services
                 );
 
 
-                CREATE INDEX IF NOT EXISTS ix_items_itemId ON items (originalItemId);
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_items_itemId ON items (originalItemId);
                 CREATE INDEX IF NOT EXISTS ix_auctions_serverId ON auctions (serverId);
                 CREATE INDEX IF NOT EXISTS ix_auctions_itemId ON auctions (itemId);
             ";
