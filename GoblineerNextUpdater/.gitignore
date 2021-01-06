@@ -1,0 +1,5 @@
+bin
+obj
+secrets.json
+.vscode
+.vs
