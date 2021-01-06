@@ -47,9 +47,10 @@ namespace GoblineerNextUpdater.Services
             {
                 var content = await response.Content.ReadAsStreamAsync();
                 using var document = await JsonDocument.ParseAsync(content);
-                var accessToken = document.RootElement.GetProperty("access_token");
+                var accessToken = document.RootElement.GetProperty("access_token").GetString() 
+                    ?? throw new Exception("Cannot get access token from json.");
 
-                return accessToken.GetString();
+                return accessToken;
             }
             else
             {
@@ -74,7 +75,7 @@ namespace GoblineerNextUpdater.Services
             }
             else
             {
-                throw new Exception($"GetAuthenticated failed with code: {response.StatusCode}, url: {response.RequestMessage.RequestUri}");
+                throw new Exception($"GetAuthenticated failed with code: {response.StatusCode}, url: {response.RequestMessage?.RequestUri}");
             }
         }
 
@@ -97,7 +98,7 @@ namespace GoblineerNextUpdater.Services
             }
             else
             {
-                throw new Exception($"GetAuthenticated failed with code: {response.StatusCode}, url: {response.RequestMessage.RequestUri}");
+                throw new Exception($"GetAuthenticated failed with code: {response.StatusCode}, url: {response.RequestMessage?.RequestUri}");
             }
         }
 
@@ -117,17 +118,24 @@ namespace GoblineerNextUpdater.Services
             return elem.Clone();
         }
 
-        public async Task<int> GetConnectedRealmIdFromSlug(string region, string realmSlug, string locale)
+        public async Task<(int, string)> GetConnectedRealmIdFromSlug(string region, string realmSlug, string locale)
         {
             string url = $"https://{region}.api.blizzard.com/data/wow/realm/{realmSlug}?namespace=dynamic-{region}&locale={locale}";
 
-            var realmContent = await GetAuthenticatedContentOnly(url, region);
-            var connectedRealmLink = GetJsonProperty(realmContent, "connected_realm", "href").GetString();
+            var realmStream = await GetAuthenticatedContentOnly(url, region);
+            using var realmDocument = JsonDocument.Parse(realmStream);
 
-            var connectedRealmContent = await GetAuthenticatedContentOnly(connectedRealmLink, region);
-            var connectedRealmId = GetJsonProperty(connectedRealmContent, "id").GetInt32();
+            var connectedRealmLink = realmDocument.RootElement.GetProperty("connected_realm").GetProperty("href").GetString()
+                ?? throw new Exception("Cannot get connected realm link from json");
+            string realmName = realmDocument.RootElement.GetProperty("name").GetString()
+                ?? throw new Exception("Cannot get realm name from json.");
 
-            return connectedRealmId;
+
+            var connectedRealmStream = await GetAuthenticatedContentOnly(connectedRealmLink, region);
+            using var connectedRealmDocument = JsonDocument.Parse(connectedRealmStream);
+            int connectedRealmId = connectedRealmDocument.RootElement.GetProperty("id").GetInt32();
+
+            return (connectedRealmId, realmName);
         }
 
         public async Task<(List<Auction>, DateTimeOffset)> GetAuctions(string region, int connectedRealmId, string locale, DateTimeOffset lastUpdate)
@@ -135,8 +143,9 @@ namespace GoblineerNextUpdater.Services
             string url = $"https://{region}.api.blizzard.com/data/wow/connected-realm/{connectedRealmId}/auctions?namespace=dynamic-{region}&locale={locale}";
             (var auctionContent, var updateTime) = await GetAuthenticated(url, region, lastUpdate);
 
-             var auctionsDeserialized = await JsonSerializer.DeserializeAsync<AuctionResponse>(auctionContent);
-             var auctions = auctionsDeserialized.Auctions;
+            var auctionsDeserialized = await JsonSerializer.DeserializeAsync<AuctionResponse>(auctionContent)
+                ?? throw new Exception("Deserialised auctions is null.");
+            var auctions = auctionsDeserialized.Auctions;
 
             return (auctions, updateTime);
         }

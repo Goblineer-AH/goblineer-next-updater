@@ -12,39 +12,39 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace GoblineerNextUpdater.Models
 {
-    public class Modifier
+    public record Modifier
     {
         [JsonPropertyName("type")]
-        public int Type { get; set; }
+        public int Type { get; init; }
 
         [JsonPropertyName("value")]
-        public int Value { get; set; }
+        public int Value { get; init; }
     }
 
-    public class Item
+    public record Item
     {
         [JsonPropertyName("id")]
-        public int Id { get; set; }
+        public int Id { get; init; }
 
         [JsonPropertyName("context")]
-        public int? Context { get; set; }
+        public int? Context { get; init; }
 
         [JsonPropertyName("modifiers")]
-        public List<Modifier>? Modifiers { get; set; }
+        public List<Modifier>? Modifiers { get; init; }
 
         [JsonPropertyName("pet_breed_id")]
-        public int? PetBreedId { get; set; }
+        public int? PetBreedId { get; init; }
 
         [JsonPropertyName("pet_level")]
-        public int? PetLevel { get; set; }
+        public int? PetLevel { get; init; }
         
         [JsonPropertyName("pet_quality_id")]
-        public int? PetQualityId { get; set; }
+        public int? PetQualityId { get; init; }
         
         [JsonPropertyName("pet_species_id")]
-        public int? PetSpeciesId { get; set; }
+        public int? PetSpeciesId { get; init; }
         
         [JsonPropertyName("bonus_lists")]
-        public List<int>? BonusLists { get; set; }
+        public List<int>? BonusLists { get; init; }
     }
 }
