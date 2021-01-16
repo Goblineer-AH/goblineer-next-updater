@@ -16,6 +16,7 @@ namespace GoblineerNextUpdater
         public static Config LoadConfig(string filePath)
         {
             var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("secrets.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables()
                 .Build();

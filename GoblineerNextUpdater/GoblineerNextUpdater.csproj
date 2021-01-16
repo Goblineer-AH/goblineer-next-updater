@@ -15,10 +15,4 @@
     <PackageReference Include="npgsql" Version="4.1.5" />
   </ItemGroup>
 
-   <ItemGroup>
-    <Content Include="secrets.json">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>  
-  </ItemGroup>
-
 </Project>
