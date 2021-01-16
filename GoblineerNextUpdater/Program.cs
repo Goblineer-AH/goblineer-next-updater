@@ -24,6 +24,7 @@ namespace GoblineerNextUpdater
 
         public static async Task TestMain4(BlizzardAPIService blizzardAPIService, DbService dbService, GoblineerService goblineerService)
         {
+            // await dbService.DropTables();
             await dbService.InitialseDatabase();
             await dbService.TruncateTables();
 

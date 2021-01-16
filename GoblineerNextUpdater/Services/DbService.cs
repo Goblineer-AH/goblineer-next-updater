@@ -49,8 +49,11 @@ namespace GoblineerNextUpdater.Services
         public async Task InsertServerAsync(int connectedrealmid, string region, string realm, string realmName, DateTimeOffset lastUpdate)
         {
             var query = @"
-                INSERT INTO servers (connectedrealmid, region, realm, realmname, lastupdate)
-                VALUES (@connectedrealmid, @region, @realm, @realmname, @lastupdate);
+                INSERT INTO servers (id, lastupdate)
+                VALUES (@connectedrealmid, @lastupdate);
+
+                INSERT INTO realms (id, region, realm, realmname)
+                VALUES (@connectedrealmid, @region, @realm, @realmname);
             ";
 
             await using var connection = await OpenNewConnection();
@@ -68,7 +71,7 @@ namespace GoblineerNextUpdater.Services
         public async Task<int?> GetServerId(string region, string realm)
         {
             var query = @"
-                SELECT connectedrealmid FROM servers
+                SELECT id FROM realms
                 WHERE region = @region AND realm = @realm;
             ";
 
@@ -93,7 +96,7 @@ namespace GoblineerNextUpdater.Services
         {
             var query = @"
                 SELECT lastupdate FROM servers
-                WHERE connectedrealmid = @connectedrealmid;
+                WHERE id = @connectedrealmid;
             ";
 
             await using var connection = await OpenNewConnection();
@@ -289,7 +292,7 @@ namespace GoblineerNextUpdater.Services
         public async Task UpdateServerLastUpdate(int connectedRealmId, DateTimeOffset lastUpdate)
         {
             var query = @"
-                UPDATE servers SET lastupdate = @lastUpdate WHERE connectedrealmid = @connectedRealmId
+                UPDATE servers SET lastupdate = @lastUpdate WHERE id = @connectedRealmId
             ";
 
             await using var connection = await OpenNewConnection();
@@ -320,12 +323,15 @@ namespace GoblineerNextUpdater.Services
         {
             var query = @"
                 CREATE TABLE IF NOT EXISTS servers (
-                    id serial PRIMARY KEY,
-                    connectedRealmId INTEGER NOT NULL,
+                    id INTEGER PRIMARY KEY,
+                    lastUpdate TIMESTAMPTZ NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS realms (
+                    id INTEGER REFERENCES servers(id) ON DELETE CASCADE,
                     region TEXT NOT NULL,
                     realm TEXT NOT NULL,
-                    realmName TEXT NOT NULL,
-                    lastUpdate TIMESTAMPTZ NOT NULL
+                    realmName TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS items (
@@ -378,7 +384,23 @@ namespace GoblineerNextUpdater.Services
             var query = @"
                 -- TRUNCATE TABLE items CASCADE;
                 TRUNCATE TABLE auctions;
-                TRUNCATE TABLE servers;
+                TRUNCATE TABLE servers CASCADE;
+            ";
+
+            await using var connection = await OpenNewConnection();
+            
+            await using var cmd = new NpgsqlCommand(query, connection);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DropTables()
+        {
+            var query = @"
+                DROP TABLE items CASCADE;
+                DROP TABLE auctions CASCADE;
+                DROP TABLE marketvalues CASCADE;
+                DROP TABLE servers CASCADE;
+                DROP TABLE realms;
             ";
 
             await using var connection = await OpenNewConnection();
